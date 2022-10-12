@@ -1,4 +1,3 @@
-from random import random
 import psycopg
 import os
 from dotenv import load_dotenv
@@ -21,28 +20,25 @@ cur2 = dbconn2.cursor()
 
 # compare table names
 cur1.execute('SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = %s', [os.getenv('SCHEMA1')])
-tables1 = cur1.fetchall()
+tables1 = [item[0] for item in cur1.fetchall()]
 cur2.execute('SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = %s', [os.getenv('SCHEMA2')])
-tables2 = cur2.fetchall()
-diff = set(tables1) ^ set(tables2)
-if diff:
-    diff_tables = [item[0] for item in diff]
-    text = "diff tables:\n\t{}".format(',\n\t'.join(diff_tables))
+tables2 = [item[0] for item in cur2.fetchall()]
+diff_output = list(set(tables1) ^ set(tables2))
+if diff_output:
+    text = "diff tables:\n\t{}".format(',\n\t'.join(diff_output))
     write_final(text)
 
 # compare table schemas
-diff_output = []
-schema = []
+column_names = []
 for table in tables1:
     q = 'SELECT column_name, {} FROM information_schema.columns WHERE table_name = %s AND table_schema = %s ORDER BY column_name ASC'.format(', '.join(schema_columns))
-    cur1.execute(q, [table[0], os.getenv('SCHEMA1')])
+    cur1.execute(q, [table, os.getenv('SCHEMA1')])
     schema1 = cur1.fetchall()
-    schema.append(schema1)
-    cur2.execute(q, [table[0], os.getenv('SCHEMA2')])
+    cur2.execute(q, [table, os.getenv('SCHEMA2')])
     schema2 = cur2.fetchall()
 
     if len(schema1)==0 or len(schema2)==0:
-        errm = 'could not get columns on table `{}`, database {}'.format(table[0], '1 and 2' if len(schema1)==0 and len(schema2)==0 else '1' if len(schema1)==0 else '2')
+        errm = 'could not get columns on table `{}`, database {}'.format(table, '1 and 2' if len(schema1)==0 and len(schema2)==0 else '1' if len(schema1)==0 else '2')
         # diff_output.append(errm)
         print(errm)
         continue
@@ -50,6 +46,7 @@ for table in tables1:
     # compare column count and names
     columns1 = [item[0] for item in schema1]
     columns2 = [item[0] for item in schema2]
+    column_names.append(columns1)
     diff = set(columns1) ^ set(columns2)
     if diff:
         diff_columns = [item[0] for item in diff]
@@ -71,22 +68,65 @@ for table in tables1:
 if diff_output:
     write_final('\n'.join(diff_output))
 
-#compare data
-# for i in range(len(tables1)):
-#     match_field = None
-#     for field in schema[i]:
-#         if 'hash' in field:
-#             match_field = field
-#     if not match_field:
-#         for field in schema[i]:
-#             if 'geom' in field:
-#                 match_field = "MD5({})".format(field)
-#     if not match_field:
-#         continue
+# compare data
+for i in range(2): #len(tables1)
+    order_field = None
+    for field in column_names[i]:
+        if 'hash' in field:
+            order_field = field
+    if not order_field:
+        for field in column_names[i]:
+            if 'geom' in field:
+                order_field = 'MD5(CAST({} AS TEXT))'.format(field)
+    if not order_field:
+        continue
 
-#     schema[i].remove('gid')
-#     select_str = ', '.join(schema[i])
+    if 'gid' in column_names[i]:
+        column_names[i].remove('gid')
+    select_str = order_field+', '+', '.join(column_names[i])
 
-#     cur1.execute('SELECT {}')
+    finished = False
+    offset1 = 0
+    offset2 = 0
+    diffs = []
+    while offset1 < 100000:
+        cur1.execute('SELECT {} FROM {} ORDER BY {} ASC LIMIT 1000 OFFSET {}'.format(select_str, tables1[i], order_field, offset1))
+        data1 = cur1.fetchall()
+        cur2.execute('SELECT {} FROM {} ORDER BY {} ASC LIMIT 1000 OFFSET {}'.format(select_str, tables1[i], order_field, offset2))
+        data2 = cur2.fetchall()
+        if len(data1) == 0 and len(data2) == 0:
+            break
+        i1=0
+        i2=0
+        offset1+=1000
+        offset2+=1000
+        while i1<len(data1) or i2<len(data2):
+            if len(data2) <= i2:
+                diffs.append("database 2 table `{}` missing item from database 1 `WHERE {} = '{}'`".format(tables1[i], order_field, str(data1[i1][0])))
+                i2+=1
+                offset1-=1
+                continue
+            if len(data1) <= i1:
+                diffs.append("database 1 table `{}` missing item from database 2 `WHERE {} = '{}'`".format(tables1[i], order_field, str(data2[i2][0])))
+                i1+=1
+                offset2-=1
+                continue
+            if data1[i1][0] > data2[i2][0]:
+                diffs.append("database 2 table `{}` missing item from database 1 `WHERE {} = '{}'`".format(tables1[i], order_field, str(data1[i1][0])))
+                i2+=1
+                offset1-=1
+                continue
+            if data1[i1][0] < data2[i2][0]:
+                diffs.append("database 1 table `{}` missing item from database 2 `WHERE {} = '{}'`".format(tables1[i], order_field, str(data2[i2][0])))
+                i1+=1
+                offset2-=1
+                continue
+            i1+=1
+            i2+=1
+    if diffs:
+        diff_output.append('diff table data on `{}`:\n\t{}'.format(tables1[i], '\n\t'.join(diffs)))
+if diff_output:
+    write_final('\n'.join(diff_output))
+        
 
 write_final('equal')
