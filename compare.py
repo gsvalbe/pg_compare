@@ -8,7 +8,7 @@ output = open('output.txt', 'w', encoding='utf-8')
 
 # 'information_schema.columns' columns to compare
 schema_columns = ['data_type', 'is_nullable', 'numeric_precision']
-skip_tables = ['django_migrations', 'kijs_ielu_posmi', 'kijs_km_signs', 'kijs_poi', 'kijs_postal_area', 'kijs_adrese_lv_old_old_vers', 'kijs_adrese_lv_old_OLD_VERS','kijs_iela_detail','kijs_iela']
+skip_tables = ['django_migrations', 'kijs_adrese_lv_old_old_vers', 'kijs_adrese_lv_old_OLD_VERS', 'kijs_poi','kijs_iela','kijs_iela_detail','kijs_ielu_posmi']
 skip_columns = ['gid', 'id']
 
 dbconn1 = psycopg.connect("host={} port={} dbname={} user={}".format(os.getenv('HOST'), os.getenv('PORT'), os.getenv('DBNAME1'), os.getenv('USER')))
@@ -71,7 +71,7 @@ for table in tables1:
             if schema1[i][j] != schema2[i][j]:
                 col_diffs.append('{}: \n\t\t1) {} \n\t\t2) {}'.format(schema_columns[j-1], str(schema1[i][j]), str(schema2[i][j])))
         if col_diffs:
-            output.write("'{}', '{}':\n\t{}\n".format(table, schema1[i][0], '\n\t\t'.join(col_diffs)))
+            output.write("'{}'->'{}':\n\t{}\n".format(table, schema1[i][0], '\n\t\t'.join(col_diffs)))
             stop = True
 # if stop:
     # output.close()
@@ -100,7 +100,7 @@ for i in range(len(tables1)): #len(tables1)
     offset1 = 0
     offset2 = 0
     diffs = []
-    while offset1 < 100000:
+    while offset1 < 500000 and offset2 < 500000:
         cur1.execute('SELECT {} FROM {} ORDER BY {} ASC LIMIT 1000 OFFSET {}'.format(select_str, table, order_field, offset1))
         data1 = cur1.fetchall()
         cur2.execute('SELECT {} FROM {} ORDER BY {} ASC LIMIT 1000 OFFSET {}'.format(select_str, table, order_field, offset2))
