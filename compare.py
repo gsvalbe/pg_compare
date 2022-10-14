@@ -10,6 +10,7 @@ output = open('output.txt', 'w', encoding='utf-8')
 schema_columns = ['data_type', 'is_nullable', 'numeric_precision']
 skip_tables = ['django_migrations', 'spatial_ref_sys', 'kijs_adrese_lv_old_OLD_VERS']
 skip_columns = ['gid', 'id']
+# maximum items of detailed output per table
 table_detailed_max = 50
 
 dbconn1 = psycopg.connect("host={} port={} dbname={} user={}".format(os.getenv('HOST'), os.getenv('PORT'), os.getenv('DBNAME1'), os.getenv('USER')))
