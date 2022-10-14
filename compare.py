@@ -8,7 +8,7 @@ output = open('output.txt', 'w', encoding='utf-8')
 
 # 'information_schema.columns' columns to compare
 schema_columns = ['data_type', 'is_nullable', 'numeric_precision']
-skip_tables = ['django_migrations', 'spatial_ref_sys', 'kijs_adrese_lv_old_old_vers', 'kijs_adrese_lv_old_OLD_VERS', 'kijs_poi', 'kijs_iela', 'kijs_iela_detail', 'kijs_ielu_posmi']
+skip_tables = ['django_migrations', 'spatial_ref_sys', 'kijs_adrese_lv_old_OLD_VERS']
 skip_columns = ['gid', 'id']
 table_detailed_max = 50
 
@@ -113,10 +113,12 @@ def compare_data(table, column_names):
         ofc2 = cur2.fetchone()[0]
 
     if ofc1 < c1 or ofc2 < c2:
-        for field in column_names:
-            if 'name' in field or 'code' in field or 'index' in field:
-                o_field += ', ' + field
-                order_field = 'MD5(ROW({})::TEXT)'.format(o_field)
+        for fallback in ['code','name','index','fts']:
+            for field in column_names:
+                if fallback in field:
+                    o_field += ', ' + field
+                    order_field = 'MD5(ROW({})::TEXT)'.format(o_field)
+                    break
         if not order_field:
             output.write("no order field found on '{}'\n".format(table))
             print("no order field found on '{}'".format(table))
