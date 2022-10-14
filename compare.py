@@ -144,9 +144,7 @@ def compare_data(table, column_names):
             break
         i1=0
         i2=0
-        offset1+=1000
-        offset2+=1000
-        while i1<len(data1) and i2<len(data2) and i1<10000 and i2<10000:
+        while i1<len(data1) and i2<len(data2):
             if print_detailed:
                 if missing1 + missing2 + sum(diff_col.values()) > table_detailed_max:
                     output.write('...\n')
@@ -154,13 +152,13 @@ def compare_data(table, column_names):
             if data1[i1][0] > data2[i2][0]:
                 missing1 += 1
                 if print_detailed:
-                    output.write("db table '{}' missing from db 1 `WHERE {} = '{}'`\n".format(table, order_field, str(data1[i1][0])))
+                    output.write("db 1 '{}' missing `WHERE {} = '{}'`\n".format(table, order_field, str(data1[i1][0])))
                 i2+=1
                 continue
             if data1[i1][0] < data2[i2][0]:
                 missing2 += 1
                 if print_detailed:
-                    output.write("db table '{}' missing from db 2 `WHERE {} = '{}'`\n".format(table, order_field, str(data2[i2][0]))) 
+                    output.write("db 2 '{}' missing `WHERE {} = '{}'`\n".format(table, order_field, str(data2[i2][0]))) 
                 i1+=1
                 continue
             col_diffs = []
@@ -171,9 +169,11 @@ def compare_data(table, column_names):
                     if print_detailed:
                         col_diffs.append("'{}':  1)'{}', 2)'{}'".format(column_names[col-1], data1[i1][col], data2[i2][col]))
             if col_diffs:
-                output.write("table '{}' row data: \n\t\t{}\n".format(table, '\n\t\t'.join(col_diffs)))
+                output.write("'{}' row data (db1: {}, db2: {}): \n\t\t{}\n".format(table, str(offset1+i1), str(offset2+i2), '\n\t\t'.join(col_diffs)))
             i1+=1
             i2+=1
+        offset1+=1000
+        offset2+=1000
     
     if missing1:
         output.write("{} rows missing in db 1\n".format(str(missing1)))
